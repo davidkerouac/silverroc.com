@@ -15,6 +15,7 @@
 ```bash
 npm install
 cp .env.example .env.local
+npm run prepare:env
 npm run dev -- --port 4190
 ```
 

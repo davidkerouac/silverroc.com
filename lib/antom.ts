@@ -45,8 +45,10 @@ function normalizePem(value: string) {
 
 function wrapPemBody(value: string, label: "PRIVATE KEY" | "PUBLIC KEY") {
   const normalized = normalizePem(value);
-  if (normalized.includes("BEGIN ")) return normalized;
-  const compact = normalized.replace(/\s+/g, "");
+  const compact = normalized
+    .replace(/-----BEGIN [^-]+-----/g, "")
+    .replace(/-----END [^-]+-----/g, "")
+    .replace(/\s+/g, "");
   const lines = compact.match(/.{1,64}/g)?.join("\n") || compact;
   return `-----BEGIN ${label}-----\n${lines}\n-----END ${label}-----`;
 }

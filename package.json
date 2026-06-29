@@ -8,7 +8,8 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "verify:code": "npm run typecheck && npm run build",
-    "verify:launch": "node scripts/verify-launch.mjs --dotenv-file .env.local --check-vercel"
+    "verify:launch": "node scripts/verify-launch.mjs --dotenv-file .env.local --check-vercel",
+    "prepare:env": "node scripts/prepare-env.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.108.2",
