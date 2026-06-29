@@ -2580,8 +2580,8 @@
             <li><strong>来信</strong><span>会员会收到小和尚主动写来的信，也能保留收藏、引用和回信。</span></li>
           </ul>
           <div class="price-row">
-            <span class="price">¥9.9</span>
-            <span class="period">/ 月，每天无限页、记忆与来信</span>
+            <span class="price" id="priceLabel">¥9.9</span>
+            <span class="period" id="pricePeriod">/ 月，每天无限页、记忆与来信</span>
           </div>
           <div class="paywall-actions">
             <button class="ghost-btn" id="closePaywall">再看看</button>
@@ -2754,6 +2754,8 @@
       const paywall = $("paywall");
       const closePaywall = $("closePaywall");
       const subscribeButton = $("subscribeButton");
+      const priceLabel = $("priceLabel");
+      const pricePeriod = $("pricePeriod");
       const accountPill = $("accountPill");
       const authScreen = $("authScreen");
       const authForm = $("authForm");
@@ -2953,6 +2955,18 @@
           throw error;
         }
         return payload;
+      }
+
+      async function loadProductConfig() {
+        try {
+          const payload = await apiJson("/api/config");
+          const price = payload?.membership?.price;
+          if (price?.priceLabel) priceLabel.textContent = price.priceLabel;
+          if (price?.periodLabel) pricePeriod.textContent = price.periodLabel;
+        } catch {
+          priceLabel.textContent = "¥9.9";
+          pricePeriod.textContent = "/ 月，每天无限页、记忆与来信";
+        }
       }
 
       async function refreshServerSession(session = loadServerSession()) {
@@ -4035,6 +4049,7 @@
 
       updateTimeState();
       renderAll();
+      loadProductConfig();
       syncMembership({ rerender: true, silent: true });
       handlePaymentReturn().catch((error) => {
         noteMeta.textContent = "练剑册";

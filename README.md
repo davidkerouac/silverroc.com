@@ -48,6 +48,14 @@ tables are written from Next.js API routes with the service role key.
 
 The MVP uses one-time checkout for a 30-day membership. It is not recurring billing yet.
 
+`ANTOM_PRIVATE_KEY` / `ANTOM_PRIVATE_KEY_FILE` must be a Node/OpenSSL-readable RSA
+private key. Raw base64 public keys are accepted and wrapped as PEM automatically,
+but the private key must pass:
+
+```bash
+node scripts/verify-launch.mjs --dotenv-file .env.local
+```
+
 Required callback URL in Antom:
 
 ```text
@@ -65,6 +73,7 @@ https://silverroc.com/?payment=return
 ```bash
 npm run typecheck
 npm run build
+npm run verify:launch
 curl http://localhost:4190/api/health
 ```
 

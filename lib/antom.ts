@@ -32,22 +32,41 @@ type AntomConfig = {
   payPath: string;
 };
 
+export type AntomPriceConfig = {
+  currency: string;
+  amountMinor: number;
+  priceLabel: string;
+  periodLabel: string;
+};
+
 function normalizePem(value: string) {
   return value.replace(/\\n/g, "\n").trim();
 }
 
+function wrapPemBody(value: string, label: "PRIVATE KEY" | "PUBLIC KEY") {
+  const normalized = normalizePem(value);
+  if (normalized.includes("BEGIN ")) return normalized;
+  const compact = normalized.replace(/\s+/g, "");
+  const lines = compact.match(/.{1,64}/g)?.join("\n") || compact;
+  return `-----BEGIN ${label}-----\n${lines}\n-----END ${label}-----`;
+}
+
 async function loadPrivateKey() {
   const inline = process.env.ANTOM_PRIVATE_KEY;
-  if (inline) return normalizePem(inline);
+  if (inline) return wrapPemBody(inline, "PRIVATE KEY");
 
   const file = process.env.ANTOM_PRIVATE_KEY_FILE;
-  if (file) return normalizePem(await readFile(file, "utf8"));
+  if (file) return wrapPemBody(await readFile(file, "utf8"), "PRIVATE KEY");
 
   throw new HttpError(503, "Missing Antom private key");
 }
 
+function currencyDecimals(currency: string) {
+  return currency.toUpperCase() === "JPY" ? 0 : 2;
+}
+
 function decimalToMinor(value: string, currency: string) {
-  const decimals = currency.toUpperCase() === "JPY" ? 0 : 2;
+  const decimals = currencyDecimals(currency);
   const numeric = Number(value || "9.9");
   if (!Number.isFinite(numeric) || numeric <= 0) {
     throw new HttpError(503, "Invalid Antom price");
@@ -55,11 +74,34 @@ function decimalToMinor(value: string, currency: string) {
   return Math.round(numeric * 10 ** decimals);
 }
 
-async function getAntomConfig(): Promise<AntomConfig> {
-  const env = (process.env.ANTOM_ENV || "sandbox").toLowerCase();
+function formatPriceLabel(currency: string, amountMinor: number) {
+  const normalizedCurrency = currency.toUpperCase();
+  const decimals = currencyDecimals(normalizedCurrency);
+  const major = amountMinor / 10 ** decimals;
+  const trimmed = major.toLocaleString("en-US", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: decimals
+  });
+  const prefix = normalizedCurrency === "CNY" ? "¥" : normalizedCurrency === "USD" ? "$" : `${normalizedCurrency} `;
+  return `${prefix}${trimmed}`;
+}
+
+export function getAntomPriceConfig(): AntomPriceConfig {
   const currency = (process.env.ANTOM_DEFAULT_CURRENCY || "CNY").toUpperCase();
   const amountMinor = Number(process.env.ANTOM_MONTHLY_PRICE_MINOR || "") ||
     decimalToMinor(process.env.ANTOM_MONTHLY_PRICE || "9.9", currency);
+
+  return {
+    currency,
+    amountMinor,
+    priceLabel: formatPriceLabel(currency, amountMinor),
+    periodLabel: "/ 月，每天无限页、记忆与来信"
+  };
+}
+
+async function getAntomConfig(): Promise<AntomConfig> {
+  const env = (process.env.ANTOM_ENV || "sandbox").toLowerCase();
+  const price = getAntomPriceConfig();
   const paymentMethodType = (process.env.ANTOM_PAYMENT_METHODS || "ALIPAY")
     .split(",")
     .map((item) => item.trim())
@@ -71,9 +113,9 @@ async function getAntomConfig(): Promise<AntomConfig> {
     clientId: requiredEnv("ANTOM_CLIENT_ID"),
     merchantId: process.env.ANTOM_MERCHANT_ID || "",
     privateKey: await loadPrivateKey(),
-    publicKey: normalizePem(requiredEnv("ANTOM_PUBLIC_KEY")),
-    currency,
-    amountMinor,
+    publicKey: wrapPemBody(requiredEnv("ANTOM_PUBLIC_KEY"), "PUBLIC KEY"),
+    currency: price.currency,
+    amountMinor: price.amountMinor,
     paymentMethodType,
     payPath: process.env.ANTOM_PAY_PATH || `/ams${sandboxSegment}/api/v1/payments/pay`
   };
