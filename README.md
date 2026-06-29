@@ -70,3 +70,41 @@ curl http://localhost:4190/api/health
 
 Unauthenticated `/api/membership` should return `401`. After login it should return
 the server-side membership state.
+
+## Vercel Launch
+
+After `vercel login`, link and deploy:
+
+```bash
+vercel link
+vercel env add NEXT_PUBLIC_SITE_URL production
+vercel env add NEXT_PUBLIC_SUPABASE_URL production
+vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY production
+vercel env add SUPABASE_SERVICE_ROLE_KEY production
+vercel env add ANTOM_ENV production
+vercel env add ANTOM_GATEWAY_URL production
+vercel env add ANTOM_CLIENT_ID production
+vercel env add ANTOM_MERCHANT_ID production
+vercel env add ANTOM_PRIVATE_KEY production
+vercel env add ANTOM_PUBLIC_KEY production
+vercel env add ANTOM_DEFAULT_CURRENCY production
+vercel env add ANTOM_MONTHLY_PRICE_MINOR production
+vercel env add ANTOM_PAYMENT_METHODS production
+vercel --prod
+```
+
+For `silverroc.com`, inspect Vercel's required DNS after the domain is added:
+
+```bash
+vercel domains add silverroc.com
+vercel domains inspect silverroc.com
+```
+
+The common Vercel DNS shape is:
+
+```text
+@    A      76.76.21.21
+www  CNAME  cname.vercel-dns-0.com
+```
+
+Use the exact values returned by Vercel for the project.
