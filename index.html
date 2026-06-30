@@ -4,9 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>从前有座山</title>
+    <link rel="icon" href="data:," />
     <script>
       if (window.location.protocol === "file:") {
-        window.location.replace("http://127.0.0.1:4187/index.html?demo=practice&v=practice-grounded-v13");
+        window.location.replace("http://127.0.0.1:4190/?demo=practice");
       }
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -2579,8 +2580,8 @@
             <li><strong>来信</strong><span>会员会收到小和尚主动写来的信，也能保留收藏、引用和回信。</span></li>
           </ul>
           <div class="price-row">
-            <span class="price">¥9.9</span>
-            <span class="period">/ 月，每天无限页、记忆与来信</span>
+            <span class="price" id="priceLabel">¥9.9</span>
+            <span class="period" id="pricePeriod">/ 月，每天无限页、记忆与来信</span>
           </div>
           <div class="paywall-actions">
             <button class="ghost-btn" id="closePaywall">再看看</button>
@@ -2593,11 +2594,11 @@
         <div class="auth-card">
           <p class="section-label">山门小册</p>
           <h2 id="authTitle">用邮箱记住你的山路</h2>
-          <p>这是本地原型账号。注册后，你的来访记录、课本记录和信封会保存在这个浏览器里。</p>
+          <p>邮箱会用来同步会员状态。登录后，课本页数、记忆和来信会按会员权益打开。</p>
           <form class="auth-form" id="authForm">
             <input id="authEmail" type="email" autocomplete="email" placeholder="邮箱" required />
             <input id="authName" autocomplete="name" placeholder="怎么称呼你" />
-            <input id="authPassword" type="password" autocomplete="current-password" placeholder="密码（本地校验，不上传）" required />
+            <input id="authPassword" type="password" autocomplete="current-password" placeholder="密码（至少 6 位）" required />
             <button class="primary-btn" id="authSubmit" type="submit">注册 / 登录</button>
             <button class="ghost-btn" id="guestButton" type="button">先作为访客看看</button>
             <p class="auth-meta" id="authMeta"></p>
@@ -2617,6 +2618,8 @@
 
     <script>
       const STORAGE_KEY = "once-mountain-web:v2";
+      const AUTH_STORAGE_KEY = "once-mountain-auth:v1";
+      const PAYMENT_STORAGE_KEY = "once-mountain-payment:v1";
       const freeLimit = 4;
       const freeBookDailyLimit = 3;
       const demoAction = new URLSearchParams(window.location.search).get("demo");
@@ -2751,6 +2754,8 @@
       const paywall = $("paywall");
       const closePaywall = $("closePaywall");
       const subscribeButton = $("subscribeButton");
+      const priceLabel = $("priceLabel");
+      const pricePeriod = $("pricePeriod");
       const accountPill = $("accountPill");
       const authScreen = $("authScreen");
       const authForm = $("authForm");
@@ -2910,6 +2915,205 @@
 
       function saveState() {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+      }
+
+      function loadServerSession() {
+        try {
+          return JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY) || "null");
+        } catch {
+          return null;
+        }
+      }
+
+      function saveServerSession(email, session) {
+        if (!session?.accessToken || !session?.refreshToken) return;
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
+          email,
+          accessToken: session.accessToken,
+          refreshToken: session.refreshToken,
+          expiresAt: session.expiresAt || null
+        }));
+      }
+
+      function clearServerSession() {
+        localStorage.removeItem(AUTH_STORAGE_KEY);
+        localStorage.removeItem(PAYMENT_STORAGE_KEY);
+      }
+
+      async function apiJson(path, options = {}) {
+        const response = await fetch(path, {
+          ...options,
+          headers: {
+            "content-type": "application/json",
+            ...(options.headers || {})
+          }
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || payload?.ok === false) {
+          const error = new Error(payload?.error || `请求失败：${response.status}`);
+          error.status = response.status;
+          throw error;
+        }
+        return payload;
+      }
+
+      async function loadProductConfig() {
+        try {
+          const payload = await apiJson("/api/config");
+          const price = payload?.membership?.price;
+          if (price?.priceLabel) priceLabel.textContent = price.priceLabel;
+          if (price?.periodLabel) pricePeriod.textContent = price.periodLabel;
+        } catch {
+          priceLabel.textContent = "¥9.9";
+          pricePeriod.textContent = "/ 月，每天无限页、记忆与来信";
+        }
+      }
+
+      async function refreshServerSession(session = loadServerSession()) {
+        if (!session?.refreshToken) throw new Error("需要重新登录");
+        const payload = await apiJson("/api/auth/refresh", {
+          method: "POST",
+          body: JSON.stringify({ refreshToken: session.refreshToken })
+        });
+        saveServerSession(payload.user.email, payload.session);
+        const user = appState.users[payload.user.email];
+        if (user) {
+          applyServerMembership(user, payload.user, payload.membership);
+          saveState();
+        }
+        return payload;
+      }
+
+      async function authedApiJson(path, options = {}) {
+        let session = loadServerSession();
+        const user = currentUser();
+        if (!session?.accessToken || !user || session.email !== user.email) {
+          throw new Error("请先用邮箱登录");
+        }
+
+        try {
+          return await apiJson(path, {
+            ...options,
+            headers: {
+              authorization: `Bearer ${session.accessToken}`,
+              ...(options.headers || {})
+            }
+          });
+        } catch (error) {
+          if (error.status !== 401) throw error;
+          const refreshed = await refreshServerSession(session);
+          session = loadServerSession();
+          return apiJson(path, {
+            ...options,
+            headers: {
+              authorization: `Bearer ${session.accessToken}`,
+              ...(options.headers || {})
+            }
+          });
+        }
+      }
+
+      function applyServerMembership(user, serverUser, membership) {
+        if (!user) return;
+        user.serverUserId = serverUser?.id || user.serverUserId || "";
+        user.email = serverUser?.email || user.email;
+        user.name = serverUser?.name || user.name;
+        user.isPaid = Boolean(membership?.isPaid);
+        user.membershipTier = membership?.tier || (user.isPaid ? "member" : "free");
+        user.membershipExpiresAt = membership?.expiresAt || null;
+        ensureDailyState(user);
+      }
+
+      async function syncMembership({ rerender = true, silent = true } = {}) {
+        const user = currentUser();
+        if (!user || user.id === "guest") return null;
+
+        try {
+          const payload = await authedApiJson("/api/membership");
+          applyServerMembership(user, payload.user, payload.membership);
+          saveState();
+          if (rerender) renderAll();
+          return payload.membership;
+        } catch (error) {
+          if (!silent) throw error;
+          return null;
+        }
+      }
+
+      function rememberPendingPayment(paymentRequestId) {
+        const user = currentUser();
+        if (!paymentRequestId || !user?.email) return;
+        localStorage.setItem(PAYMENT_STORAGE_KEY, JSON.stringify({
+          email: user.email,
+          paymentRequestId,
+          at: new Date().toISOString()
+        }));
+      }
+
+      function pendingPaymentRequestId() {
+        const params = new URLSearchParams(window.location.search);
+        const fromUrl = params.get("paymentRequestId");
+        if (fromUrl) return fromUrl;
+        try {
+          const stored = JSON.parse(localStorage.getItem(PAYMENT_STORAGE_KEY) || "null");
+          const user = currentUser();
+          if (stored?.email && user?.email && stored.email === user.email) return stored.paymentRequestId;
+        } catch {}
+        return "";
+      }
+
+      function clearPendingPayment() {
+        localStorage.removeItem(PAYMENT_STORAGE_KEY);
+      }
+
+      function delay(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
+
+      async function handlePaymentReturn() {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("payment") !== "return") return;
+
+        if (!currentUser() || currentUser().id === "guest") {
+          showAuth();
+          authMeta.textContent = "支付回来后，需要先登录邮箱来确认会员。";
+          return;
+        }
+
+        const paymentRequestId = pendingPaymentRequestId();
+        noteMeta.textContent = "练剑册";
+        noteTitle.textContent = "正在确认";
+        noteBody.textContent = "已经回到山门，正在等支付结果落到小册。";
+        noteModal.classList.add("is-open");
+
+        for (let attempt = 0; attempt < 8; attempt += 1) {
+          let payload = null;
+          try {
+            payload = paymentRequestId
+              ? await authedApiJson(`/api/payments/antom/status?paymentRequestId=${encodeURIComponent(paymentRequestId)}`)
+              : { membership: await syncMembership({ rerender: false }) };
+          } catch {
+            payload = { membership: await syncMembership({ rerender: false, silent: true }) };
+          }
+
+          if (payload.membership?.isPaid) {
+            const user = currentUser();
+            applyServerMembership(user, payload.user, payload.membership);
+            saveState();
+            clearPendingPayment();
+            paywall.classList.remove("is-open");
+            noteTitle.textContent = "已经开通";
+            noteBody.textContent = "练剑册已经记下。今天可以继续翻页，小和尚也会记得更多来访线索。";
+            renderAll();
+            window.history.replaceState({}, document.title, window.location.pathname);
+            return;
+          }
+
+          await delay(1800);
+        }
+
+        noteTitle.textContent = "还在确认";
+        noteBody.textContent = "支付平台可能还没把结果送到山里。稍后重新打开，或再点一次会员状态同步。";
       }
 
       function todayKey() {
@@ -3269,6 +3473,9 @@
             passwordHash,
             createdAt: new Date().toISOString(),
             isPaid: false,
+            serverUserId: "",
+            membershipTier: "free",
+            membershipExpiresAt: null,
             chatDate: todayKey(),
             chatTurns: 0,
             chatHistory: [],
@@ -3381,7 +3588,7 @@
           accountPill.textContent = "邮箱入山";
           return;
         }
-        accountPill.textContent = user.id === "guest" ? "访客" : user.email;
+        accountPill.textContent = user.id === "guest" ? "访客" : (user.isPaid ? "会员" : user.email);
       }
 
       function renderBook() {
@@ -3727,6 +3934,7 @@
         const user = currentUser();
         if (user && user.id !== "guest") {
           appState.currentUser = null;
+          clearServerSession();
           saveState();
           showAuth();
           renderAll();
@@ -3740,25 +3948,32 @@
         const email = authEmail.value.trim().toLowerCase();
         if (!email) return;
         const password = authPassword.value;
-        if (password.length < 4) {
-          authMeta.textContent = "密码至少 4 位。";
+        if (password.length < 6) {
+          authMeta.textContent = "密码至少 6 位。";
           return;
         }
         const name = authName.value.trim();
         authSubmit.textContent = "正在开门";
-        const passwordHash = await hashPassword(email, password);
-        const existing = appState.users[email];
-        if (existing?.passwordHash && existing.passwordHash !== passwordHash) {
-          authMeta.textContent = "这个邮箱已经来过山门，但密码不对。";
+
+        try {
+          const payload = await apiJson("/api/auth/password", {
+            method: "POST",
+            body: JSON.stringify({ email, password, name })
+          });
+          const user = createUser(email, name || payload.user?.name || "山中来客");
+          applyServerMembership(user, payload.user, payload.membership);
+          saveServerSession(payload.user.email, payload.session);
+          saveState();
+          authPassword.value = "";
+          authMeta.textContent = payload.membership?.isPaid ? "欢迎回来，练剑册还在。" : "山门小册已记下这个邮箱。";
+          authSubmit.textContent = "注册 / 登录";
+          hideAuth();
+          renderAll();
+        } catch (error) {
+          authMeta.textContent = error.message || "登录失败，请稍后再试。";
           authSubmit.textContent = "注册 / 登录";
           return;
         }
-        createUser(email, name, passwordHash);
-        authPassword.value = "";
-        authMeta.textContent = existing ? "欢迎回来，山门小册认得你。" : "山门小册已记下这个邮箱。";
-        authSubmit.textContent = "注册 / 登录";
-        hideAuth();
-        renderAll();
       });
 
       guestButton.addEventListener("click", () => {
@@ -3794,23 +4009,54 @@
       closePaywall.addEventListener("click", () => paywall.classList.remove("is-open"));
       closeNote.addEventListener("click", () => noteModal.classList.remove("is-open"));
 
-      subscribeButton.addEventListener("click", () => {
-        const user = currentUser() || createUser("guest", "访客");
-        user.isPaid = true;
-        ensureDailyState(user);
-        chatInput.disabled = false;
-        sendButton.disabled = false;
-        paywall.classList.remove("is-open");
-        subscribeButton.textContent = "已开通";
-        saveState();
-        renderAll();
-        setTimeout(() => {
+      subscribeButton.addEventListener("click", async () => {
+        const user = currentUser();
+        if (!user || user.id === "guest" || !loadServerSession()?.accessToken) {
+          paywall.classList.remove("is-open");
+          showAuth();
+          authMeta.textContent = "开通练剑册前，先用邮箱登录。";
+          return;
+        }
+
+        subscribeButton.disabled = true;
+        subscribeButton.textContent = "正在开门";
+
+        try {
+          const payload = await authedApiJson("/api/payments/antom/create", {
+            method: "POST",
+            body: JSON.stringify({ plan: "monthly" })
+          });
+
+          if (payload.alreadyPaid) {
+            applyServerMembership(user, payload.user, payload.membership);
+            saveState();
+            paywall.classList.remove("is-open");
+            renderAll();
+            return;
+          }
+
+          rememberPendingPayment(payload.paymentRequestId);
+          window.location.href = payload.redirectUrl;
+        } catch (error) {
+          subscribeButton.disabled = false;
           subscribeButton.textContent = "开通练剑册";
-        }, 1400);
+          noteMeta.textContent = "练剑册";
+          noteTitle.textContent = "还没开通";
+          noteBody.textContent = error.message || "支付暂时没有连上，稍后再试。";
+          noteModal.classList.add("is-open");
+        }
       });
 
       updateTimeState();
       renderAll();
+      loadProductConfig();
+      syncMembership({ rerender: true, silent: true });
+      handlePaymentReturn().catch((error) => {
+        noteMeta.textContent = "练剑册";
+        noteTitle.textContent = "确认失败";
+        noteBody.textContent = error.message || "支付确认暂时失败，请稍后再试。";
+        noteModal.classList.add("is-open");
+      });
       setInterval(updateTimeState, 30000);
     </script>
   </body>
