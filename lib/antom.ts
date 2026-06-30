@@ -104,7 +104,7 @@ export function getAntomPriceConfig(): AntomPriceConfig {
 async function getAntomConfig(): Promise<AntomConfig> {
   const env = (process.env.ANTOM_ENV || "sandbox").toLowerCase();
   const price = getAntomPriceConfig();
-  const paymentMethodType = (process.env.ANTOM_PAYMENT_METHODS || "ALIPAY")
+  const paymentMethodType = (process.env.ANTOM_PAYMENT_METHODS || "ALIPAY_CN")
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean)[0] || "ALIPAY";
@@ -131,7 +131,7 @@ function signAntomRequest(config: AntomConfig, requestTime: string, body: string
   const signer = crypto.createSign("RSA-SHA256");
   signer.update(canonicalContent("POST", config.payPath, config.clientId, requestTime, body));
   signer.end();
-  const signature = signer.sign(config.privateKey, "base64");
+  const signature = signer.sign(config.privateKey).toString("base64url");
   return `algorithm=RSA256,keyVersion=1,signature=${signature}`;
 }
 
@@ -151,7 +151,7 @@ export async function verifyAntomNotificationSignature(input: {
   const verifier = crypto.createVerify("RSA-SHA256");
   verifier.update(canonicalContent("POST", input.path, input.clientId || config.clientId, input.requestTime, input.body));
   verifier.end();
-  return verifier.verify(config.publicKey, parseSignature(input.signature), "base64");
+  return verifier.verify(config.publicKey, Buffer.from(parseSignature(input.signature), "base64url"));
 }
 
 function findCheckoutUrl(response: Record<string, unknown>) {
