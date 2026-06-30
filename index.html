@@ -2543,7 +2543,7 @@
           <div class="chat-log" id="chatLog"></div>
           <form class="chat-form" id="chatForm">
             <input id="chatInput" autocomplete="off" placeholder="说一句今天的事" />
-            <button class="send-btn" id="sendButton" type="submit">发送</button>
+            <button class="send-btn" id="sendButton" type="button">发送</button>
           </form>
           <p class="free-count" id="freeCount">免费短聊 0 / 4</p>
         </section>
@@ -3840,6 +3840,44 @@
         return `${memoryLine}小和尚听了一会儿，翻到一句：${picked.quote}（出处：${picked.source}）。他说：${picked.thought}`;
       }
 
+      function aiChatHistory(user = currentUser()) {
+        return (user?.chatHistory || []).slice(-8).map((msg) => ({
+          role: msg.role === "monk-msg" ? "model" : "user",
+          text: msg.text
+        }));
+      }
+
+      async function generateModelReply(input, user = currentUser()) {
+        const slot = getSlot();
+        const lesson = getTodayLesson();
+        const payload = {
+          message: input,
+          history: aiChatHistory(user),
+          memories: user?.isPaid ? (user.userMemories || []) : [],
+          activity: {
+            title: slot.title,
+            copy: slot.copy,
+            time: slot.time
+          },
+          lesson: {
+            quote: lesson.quote,
+            source: lesson.source,
+            note: lesson.note
+          }
+        };
+        const session = loadServerSession();
+        const options = {
+          method: "POST",
+          body: JSON.stringify(payload)
+        };
+
+        if (session?.accessToken && user?.email && session.email === user.email) {
+          return authedApiJson("/api/chat", options);
+        }
+
+        return apiJson("/api/chat", options);
+      }
+
       function rememberUser(text) {
         const user = currentUser();
         if (!user?.isPaid) return;
@@ -3927,6 +3965,13 @@
       closeBook.addEventListener("click", () => setBookOpen(false));
       chatToggle.addEventListener("click", toggleChatDrawer);
       closeChat.addEventListener("click", () => setDrawer("chat", false));
+      sendButton.addEventListener("click", () => {
+        if (typeof chatForm.requestSubmit === "function") {
+          chatForm.requestSubmit();
+          return;
+        }
+        chatForm.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      });
       letterEnvelope.addEventListener("click", toggleLettersDrawer);
       closeLetters.addEventListener("click", () => setDrawer("letters", false));
 
@@ -3995,9 +4040,19 @@
         addMessage(text, "user-msg");
         chatInput.value = "";
         user.chatTurns += 1;
+        chatInput.disabled = true;
+        sendButton.disabled = true;
 
-        setTimeout(() => {
-          const reply = generateReply(text, user);
+        setTimeout(async () => {
+          let reply = "";
+          try {
+            const payload = await generateModelReply(text, user);
+            reply = payload.reply || "";
+          } catch (error) {
+            console.warn("Falling back to local monk reply", error);
+            reply = generateReply(text, user);
+          }
+          if (!reply) reply = generateReply(text, user);
           addMessage(reply, "monk-msg");
           rememberUser(text);
           leaveLetterFromChat(text, reply);
