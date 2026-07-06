@@ -2245,6 +2245,138 @@
         gap: 8px;
       }
 
+      @media (min-width: 900px) {
+        body {
+          display: block;
+          overflow: hidden;
+        }
+
+        .phone {
+          width: 100vw;
+          height: 100svh;
+          min-height: 720px;
+          border: 0;
+          border-radius: 0;
+          box-shadow: none;
+        }
+
+        .temple-view {
+          --scene-scale: 1;
+        }
+
+        .scene-canvas {
+          transform-origin: 50% 54%;
+        }
+
+        .temple-view .outdoor-image {
+          object-position: center center;
+        }
+
+        .account-pill {
+          top: clamp(24px, 4vh, 52px);
+          right: clamp(28px, 4.4vw, 72px);
+          min-width: 132px;
+          height: 56px;
+          border-radius: 28px;
+          font-size: 16px;
+        }
+
+        .temple-sidebar {
+          top: clamp(34px, 7vh, 72px);
+          left: clamp(34px, 4.8vw, 86px);
+          width: 86px;
+          height: 86px;
+          border-radius: 50%;
+        }
+
+        .temple-sidebar:hover,
+        .temple-sidebar:focus-within,
+        .temple-sidebar:focus {
+          width: 150px;
+          height: 366px;
+          border-radius: 24px;
+        }
+
+        .side-logo {
+          width: 64px;
+          height: 64px;
+          font-size: 16px;
+        }
+
+        .floating-actions {
+          right: clamp(34px, 4.8vw, 86px);
+          bottom: clamp(34px, 6vh, 78px);
+          gap: 14px;
+        }
+
+        .float-action {
+          width: 68px;
+          height: 68px;
+          font-size: 17px;
+        }
+
+        .book-desk {
+          width: min(760px, calc(100vw - 320px));
+          top: 52%;
+        }
+
+        .book-shell,
+        .book-page {
+          min-height: 430px;
+        }
+
+        .book-page {
+          padding: 34px 38px 30px;
+        }
+
+        .book-page:first-child {
+          padding-right: 46px;
+        }
+
+        .book-page:nth-child(2) {
+          padding-left: 46px;
+        }
+
+        .book-quote {
+          font-size: 28px;
+          line-height: 1.72;
+        }
+
+        .book-source {
+          font-size: 14px;
+        }
+
+        .book-note {
+          font-size: 17px;
+        }
+
+        .chat-drawer,
+        .letter-drawer {
+          right: clamp(118px, 8.5vw, 164px);
+          bottom: clamp(42px, 7vh, 88px);
+          width: 380px;
+          max-height: min(560px, 72%);
+        }
+
+        .chat-log {
+          max-height: 338px;
+          min-height: 176px;
+        }
+
+        .auth-screen,
+        .note-modal,
+        .paywall {
+          place-items: center;
+          padding: 32px;
+        }
+
+        .auth-card,
+        .note-card,
+        .paywall-card {
+          width: min(430px, calc(100vw - 64px));
+        }
+      }
+
       @keyframes drift {
         from {
           transform: translateX(-22px);
@@ -2794,6 +2926,15 @@
       const noteTitle = $("noteTitle");
       const noteBody = $("noteBody");
       const closeNote = $("closeNote");
+      const desktopSceneMedia = window.matchMedia("(min-width: 900px)");
+
+      function isDesktopScene() {
+        return desktopSceneMedia.matches;
+      }
+
+      function defaultSceneScale() {
+        return isDesktopScene() ? 1 : 1.16;
+      }
 
       let appState = loadState();
       let activeBookSpread = 0;
@@ -2803,31 +2944,37 @@
       let motionFrameIndex = 0;
       let motionTimer = null;
       const sceneView = {
-        scale: 1.16,
+        scale: defaultSceneScale(),
         x: 0,
         startX: 0,
         startPanX: 0,
-        startScale: 1.16,
+        startScale: defaultSceneScale(),
         startDistance: 0,
         pointers: new Map()
       };
 
       const outdoorSceneBase = "assets/mountain-temple-watercolor-day-generated-floor-v24.png";
+      const outdoorSceneBaseWide = "assets/mountain-temple-watercolor-day-generated-floor-v24-pc-wide-v1.webp";
       const outdoorSceneNight = "assets/mountain-temple-watercolor-night-v1.png";
+      const outdoorSceneNightWide = "assets/mountain-temple-watercolor-night-v1-pc-wide-v1.webp";
       const sceneFrameSets = {
         sweep: {
           interval: 980,
-          frames: Array.from({ length: 4 }, (_, index) => `assets/scene-frames/day-sweep-clean-v8/frame-${String(index + 1).padStart(2, "0")}.webp`)
+          frames: Array.from({ length: 4 }, (_, index) => `assets/scene-frames/day-sweep-clean-v8/frame-${String(index + 1).padStart(2, "0")}.webp`),
+          desktopFrames: Array.from({ length: 4 }, (_, index) => `assets/scene-frames/day-sweep-clean-v8-pc-wide-v1/frame-${String(index + 1).padStart(2, "0")}.webp`)
         },
         practice: {
           interval: 1400,
-          frames: Array.from({ length: 6 }, (_, index) => `assets/scene-frames/day-practice-grounded-v18/frame-${String(index + 1).padStart(2, "0")}.webp`)
+          frames: Array.from({ length: 6 }, (_, index) => `assets/scene-frames/day-practice-grounded-v18/frame-${String(index + 1).padStart(2, "0")}.webp`),
+          desktopFrames: Array.from({ length: 6 }, (_, index) => `assets/scene-frames/day-practice-grounded-v18-pc-wide-v1/frame-${String(index + 1).padStart(2, "0")}.webp`)
         }
       };
       const sceneAssets = [
         outdoorSceneBase,
+        outdoorSceneBaseWide,
         outdoorSceneNight,
-        ...Object.values(sceneFrameSets).flatMap(({ frames }) => frames)
+        outdoorSceneNightWide,
+        ...Object.values(sceneFrameSets).flatMap(({ frames, desktopFrames }) => [...frames, ...desktopFrames])
       ];
 
       [...new Set(sceneAssets)].forEach((src) => {
@@ -2840,6 +2987,15 @@
         if (!outdoorImage.getAttribute("src")?.endsWith(src)) {
           outdoorImage.src = src;
         }
+      }
+
+      function outdoorSceneSource(kind = "base") {
+        if (kind === "night") return isDesktopScene() ? outdoorSceneNightWide : outdoorSceneNight;
+        return isDesktopScene() ? outdoorSceneBaseWide : outdoorSceneBase;
+      }
+
+      function activeFrameSources(frameSet) {
+        return isDesktopScene() ? frameSet.desktopFrames : frameSet.frames;
       }
 
       function hideLegacyMonkLayer() {
@@ -2866,30 +3022,32 @@
 
         if (action === "sleep") {
           stopSceneMotion();
-          setSceneImage(outdoorSceneNight);
+          setSceneImage(outdoorSceneSource("night"));
           return;
         }
 
         if (action === "meditate") {
           stopSceneMotion();
-          setSceneImage(outdoorSceneBase);
+          setSceneImage(outdoorSceneSource("base"));
           return;
         }
 
         const frameSet = sceneFrameSets[action];
         if (!frameSet) {
           stopSceneMotion();
-          setSceneImage(outdoorSceneBase);
+          setSceneImage(outdoorSceneSource("base"));
           return;
         }
 
-        setSceneImage(frameSet.frames[motionFrameIndex % frameSet.frames.length]);
+        const frames = activeFrameSources(frameSet);
+        setSceneImage(frames[motionFrameIndex % frames.length]);
         if (!motionTimer) {
           motionTimer = setInterval(() => {
             const currentFrameSet = sceneFrameSets[activeMotionAction];
             if (!currentFrameSet) return;
-            motionFrameIndex = (motionFrameIndex + 1) % currentFrameSet.frames.length;
-            setSceneImage(currentFrameSet.frames[motionFrameIndex]);
+            const currentFrames = activeFrameSources(currentFrameSet);
+            motionFrameIndex = (motionFrameIndex + 1) % currentFrames.length;
+            setSceneImage(currentFrames[motionFrameIndex]);
           }, frameSet.interval);
         }
       }
@@ -3363,6 +3521,20 @@
         return schedule.find((slot) => mins >= slot.start && mins < slot.end) || sleepSlot;
       }
 
+      function refreshSceneForViewport() {
+        sceneView.scale = defaultSceneScale();
+        sceneView.x = 0;
+        activeMotionAction = "";
+        startSceneMotion(getSlot().action);
+        applySceneView();
+      }
+
+      if (desktopSceneMedia.addEventListener) {
+        desktopSceneMedia.addEventListener("change", refreshSceneForViewport);
+      } else if (desktopSceneMedia.addListener) {
+        desktopSceneMedia.addListener(refreshSceneForViewport);
+      }
+
       function getPhase(mins = minutesNow()) {
         if (mins >= 1290 || mins < 300) return "night";
         if (mins >= 1080 && mins < 1290) return "dusk";
@@ -3398,7 +3570,7 @@
       }
 
       function setSceneScale(nextScale) {
-        sceneView.scale = clamp(nextScale, 1.04, 1.34);
+        sceneView.scale = clamp(nextScale, isDesktopScene() ? 1 : 1.04, isDesktopScene() ? 1.22 : 1.34);
         applySceneView();
       }
 
