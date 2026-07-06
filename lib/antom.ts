@@ -20,6 +20,16 @@ type AntomPaymentResult = {
   checkoutUrl: string;
 };
 
+export type AntomInquiryResult = {
+  paymentRequestId: string;
+  paymentId: string | null;
+  status: string;
+  paid: boolean;
+  requestBody: Record<string, unknown>;
+  responseBody: Record<string, unknown>;
+  paidAt: string | null;
+};
+
 type AntomConfig = {
   gatewayUrl: string;
   clientId: string;
@@ -30,6 +40,7 @@ type AntomConfig = {
   amountMinor: number;
   paymentMethodType: string;
   payPath: string;
+  inquiryPath: string;
 };
 
 export type AntomPriceConfig = {
@@ -119,7 +130,8 @@ async function getAntomConfig(): Promise<AntomConfig> {
     currency: price.currency,
     amountMinor: price.amountMinor,
     paymentMethodType,
-    payPath: process.env.ANTOM_PAY_PATH || `/ams${sandboxSegment}/api/v1/payments/pay`
+    payPath: process.env.ANTOM_PAY_PATH || `/ams${sandboxSegment}/api/v1/payments/pay`,
+    inquiryPath: process.env.ANTOM_INQUIRY_PATH || `/ams${sandboxSegment}/api/v1/payments/inquiryPayment`
   };
 }
 
@@ -127,9 +139,9 @@ function canonicalContent(method: string, path: string, clientId: string, reques
   return `${method.toUpperCase()} ${path}\n${clientId}.${requestTime}.${body}`;
 }
 
-function signAntomRequest(config: AntomConfig, requestTime: string, body: string) {
+function signAntomRequest(config: AntomConfig, path: string, requestTime: string, body: string) {
   const signer = crypto.createSign("RSA-SHA256");
-  signer.update(canonicalContent("POST", config.payPath, config.clientId, requestTime, body));
+  signer.update(canonicalContent("POST", path, config.clientId, requestTime, body));
   signer.end();
   const signature = signer.sign(config.privateKey).toString("base64url");
   return `algorithm=RSA256,keyVersion=1,signature=${signature}`;
@@ -168,6 +180,42 @@ function findCheckoutUrl(response: Record<string, unknown>) {
   return candidates.find((value): value is string => typeof value === "string" && /^https?:\/\//.test(value));
 }
 
+function buildPaymentRedirectUrl(redirectUrl: string, paymentRequestId: string) {
+  const url = new URL(redirectUrl);
+  url.searchParams.set("payment", "return");
+  url.searchParams.set("paymentRequestId", paymentRequestId);
+  return url.toString();
+}
+
+async function requestAntomApi(config: AntomConfig, path: string, requestBody: Record<string, unknown>) {
+  const body = JSON.stringify(requestBody);
+  const requestTime = new Date().toISOString();
+  const response = await fetch(`${config.gatewayUrl}${path}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "client-id": config.clientId,
+      "request-time": requestTime,
+      signature: signAntomRequest(config, path, requestTime, body)
+    },
+    body
+  });
+  const responseText = await response.text();
+  let responseBody: Record<string, unknown>;
+
+  try {
+    responseBody = JSON.parse(responseText) as Record<string, unknown>;
+  } catch {
+    throw new HttpError(response.status || 502, `Antom returned non-JSON response: ${responseText.slice(0, 200)}`);
+  }
+
+  if (!response.ok) {
+    throw new HttpError(response.status, `Antom request failed: ${JSON.stringify(responseBody)}`);
+  }
+
+  return responseBody;
+}
+
 export async function createAntomPayment(input: AntomPaymentInput): Promise<AntomPaymentResult> {
   const config = await getAntomConfig();
   const paymentRequestId = `OM_${Date.now()}_${randomUUID().replace(/-/g, "").slice(0, 10)}`;
@@ -191,35 +239,11 @@ export async function createAntomPayment(input: AntomPaymentInput): Promise<Anto
     env: {
       terminalType: "WEB"
     },
-    paymentRedirectUrl: input.redirectUrl,
+    paymentRedirectUrl: buildPaymentRedirectUrl(input.redirectUrl, paymentRequestId),
     paymentNotifyUrl: input.notifyUrl
   };
 
-  const body = JSON.stringify(requestBody);
-  const requestTime = new Date().toISOString();
-  const response = await fetch(`${config.gatewayUrl}${config.payPath}`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json; charset=utf-8",
-      "client-id": config.clientId,
-      "request-time": requestTime,
-      signature: signAntomRequest(config, requestTime, body)
-    },
-    body
-  });
-  const responseText = await response.text();
-  let responseBody: Record<string, unknown>;
-
-  try {
-    responseBody = JSON.parse(responseText) as Record<string, unknown>;
-  } catch {
-    throw new HttpError(response.status || 502, `Antom returned non-JSON response: ${responseText.slice(0, 200)}`);
-  }
-
-  if (!response.ok) {
-    throw new HttpError(response.status, `Antom payment request failed: ${JSON.stringify(responseBody)}`);
-  }
-
+  const responseBody = await requestAntomApi(config, config.payPath, requestBody);
   const checkoutUrl = findCheckoutUrl(responseBody);
   if (!checkoutUrl) {
     throw new HttpError(502, `Antom response did not include a checkout URL: ${JSON.stringify(responseBody)}`);
@@ -232,5 +256,22 @@ export async function createAntomPayment(input: AntomPaymentInput): Promise<Anto
     requestBody,
     responseBody,
     checkoutUrl
+  };
+}
+
+export async function inquireAntomPayment(paymentRequestId: string): Promise<AntomInquiryResult> {
+  const config = await getAntomConfig();
+  const requestBody = { paymentRequestId };
+  const responseBody = await requestAntomApi(config, config.inquiryPath, requestBody);
+  const status = String(responseBody.paymentStatus || "UNKNOWN").toUpperCase();
+
+  return {
+    paymentRequestId,
+    paymentId: (responseBody.paymentId as string | undefined) || null,
+    status,
+    paid: status === "SUCCESS",
+    paidAt: (responseBody.paymentTime as string | undefined) || null,
+    requestBody,
+    responseBody
   };
 }
