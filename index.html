@@ -2609,8 +2609,8 @@
     <main class="phone" id="appShell" aria-label="从前有座山 H5 原型">
       <section class="screen temple-view is-active" id="templeView" data-action="practice" data-scene="outdoor">
         <div class="scene-canvas" id="sceneCanvas" aria-hidden="true">
-          <img class="scene-image outdoor-image" src="assets/mountain-temple-watercolor-day-generated-floor-v24.png" alt="" />
-          <img class="scene-image meditation-image" src="assets/temple-meditation-room.png" alt="" />
+          <img class="scene-image outdoor-image" src="assets/mountain-temple-watercolor-day-generated-floor-v24.png" alt="" decoding="async" fetchpriority="high" />
+          <img class="scene-image meditation-image" src="assets/temple-meditation-room.png" alt="" loading="lazy" decoding="async" fetchpriority="low" />
           <div class="night-sky">
             <div class="stars"></div>
             <div class="moon"></div>
@@ -2621,7 +2621,7 @@
           <div class="sleep-light"></div>
           <div class="study-light"></div>
           <div class="monk-stage">
-            <img class="monk-ground" src="assets/monk-ground-patch.png" alt="" />
+            <img class="monk-ground" src="assets/monk-ground-patch.png" alt="" loading="lazy" decoding="async" />
             <span class="scene-monk"></span>
             <span class="painted-sweep"></span>
             <span class="sweep-dust dust-one"></span>
@@ -3004,13 +3004,32 @@
         ...Object.values(sceneFrameSets).flatMap(({ frames, desktopFrames }) => [...frames, ...desktopFrames])
       ];
 
-      [...new Set(sceneAssets)].forEach((src) => {
-        const img = new Image();
-        img.src = src;
-      });
+      const preloadedSceneImages = [];
+
+      function preloadSceneAssets() {
+        const currentSceneSrc = outdoorImage?.getAttribute("src") || "";
+        [...new Set(sceneAssets)].forEach((src) => {
+          if (src === currentSceneSrc) return;
+          const img = new Image();
+          img.decoding = "async";
+          img.src = src;
+          preloadedSceneImages.push(img);
+        });
+      }
+
+      function scheduleScenePreload() {
+        const run = () => window.setTimeout(preloadSceneAssets, 1400);
+        if ("requestIdleCallback" in window) {
+          window.requestIdleCallback(run, { timeout: 4200 });
+          return;
+        }
+        window.setTimeout(run, 2600);
+      }
 
       function setSceneImage(src) {
         if (!outdoorImage) return;
+        outdoorImage.loading = "eager";
+        outdoorImage.fetchPriority = "high";
         templeView.dataset.sceneTone = src === outdoorSceneNightWide || src === outdoorSceneNight
           ? "generated-night"
           : "painted-day";
@@ -4320,6 +4339,7 @@
 
       updateTimeState();
       renderAll();
+      scheduleScenePreload();
       loadProductConfig();
       syncMembership({ rerender: true, silent: true });
       handlePaymentReturn().catch((error) => {
