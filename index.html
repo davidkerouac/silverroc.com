@@ -85,13 +85,21 @@
       }
 
       .phone[data-phase="night"] .scene-image {
-        filter: saturate(0.92) brightness(0.98) contrast(1.02);
+        filter: saturate(0.68) brightness(0.72) contrast(1.08);
+      }
+
+      .phone[data-phase="night"] .temple-view[data-scene-tone="painted-day"] .scene-image {
+        filter: saturate(0.58) brightness(0.46) contrast(1.08);
+      }
+
+      .phone[data-phase="night"] .temple-view[data-scene-tone="generated-night"] .scene-image {
+        filter: saturate(0.9) brightness(0.92) contrast(1.05);
       }
 
       .phone[data-phase="night"] .wash {
         background:
-          linear-gradient(180deg, rgba(11, 14, 18, 0.12) 0%, rgba(23, 28, 32, 0.08) 42%, rgba(29, 33, 35, 0) 66%),
-          linear-gradient(0deg, rgba(9, 11, 14, 0.2) 0%, rgba(9, 11, 14, 0.04) 48%);
+          linear-gradient(180deg, rgba(4, 8, 14, 0.52) 0%, rgba(8, 12, 18, 0.38) 46%, rgba(8, 10, 14, 0.24) 68%),
+          linear-gradient(0deg, rgba(4, 6, 10, 0.58) 0%, rgba(6, 8, 12, 0.2) 48%);
       }
 
       .night-sky {
@@ -105,6 +113,10 @@
       }
 
       .phone[data-phase="night"] .night-sky {
+        opacity: 0.86;
+      }
+
+      .phone[data-phase="night"] .temple-view[data-scene-tone="generated-night"] .night-sky {
         opacity: 0;
       }
 
@@ -160,11 +172,11 @@
 
       .moon::after {
         position: absolute;
-        inset: 9px -5px -3px 14px;
+        inset: -3px -11px 0 16px;
         border-radius: 50%;
-        background: rgba(14, 18, 22, 0.18);
+        background: rgba(10, 13, 18, 0.94);
         content: "";
-        filter: blur(2px);
+        filter: blur(0.4px);
       }
 
       .phone[data-phase="night"] h1 {
@@ -2988,13 +3000,18 @@
 
       function setSceneImage(src) {
         if (!outdoorImage) return;
+        templeView.dataset.sceneTone = src === outdoorSceneNightWide || src === outdoorSceneNight
+          ? "generated-night"
+          : "painted-day";
         if (!outdoorImage.getAttribute("src")?.endsWith(src)) {
           outdoorImage.src = src;
         }
       }
 
       function outdoorSceneSource(kind = "base") {
-        if (kind === "night") return isDesktopScene() ? outdoorSceneNightWide : outdoorSceneNight;
+        if (kind === "night" || (kind === "base" && appShell?.dataset.phase === "night")) {
+          return isDesktopScene() ? outdoorSceneNightWide : outdoorSceneNight;
+        }
         return isDesktopScene() ? outdoorSceneBaseWide : outdoorSceneBase;
       }
 
@@ -3544,8 +3561,8 @@
       }
 
       function getPhase(mins = minutesNow()) {
-        if (mins >= 1290 || mins < 300) return "night";
-        if (mins >= 1080 && mins < 1290) return "dusk";
+        if (mins >= 1140 || mins < 300) return "night";
+        if (mins >= 1080 && mins < 1140) return "dusk";
         if (mins >= 300 && mins < 430) return "dawn";
         return "day";
       }
