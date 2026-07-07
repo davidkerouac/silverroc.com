@@ -2954,19 +2954,21 @@
       };
 
       const outdoorSceneBase = "assets/mountain-temple-watercolor-day-generated-floor-v24.png";
-      const outdoorSceneBaseWide = "assets/mountain-temple-watercolor-day-generated-floor-v24-pc-wide-v1.webp";
+      const outdoorSceneBaseWide = "assets/mountain-temple-desktop-day-empty-whole-v1.webp";
       const outdoorSceneNight = "assets/mountain-temple-watercolor-night-v1.png";
-      const outdoorSceneNightWide = "assets/mountain-temple-watercolor-night-v1-pc-wide-v1.webp";
+      const outdoorSceneNightWide = "assets/mountain-temple-desktop-night-whole-v1.webp";
+      const outdoorScenePracticeWide = "assets/mountain-temple-desktop-practice-whole-v1.webp";
+      const outdoorSceneSweepWide = "assets/mountain-temple-desktop-sweep-whole-v1.webp";
       const sceneFrameSets = {
         sweep: {
           interval: 980,
           frames: Array.from({ length: 4 }, (_, index) => `assets/scene-frames/day-sweep-clean-v8/frame-${String(index + 1).padStart(2, "0")}.webp`),
-          desktopFrames: Array.from({ length: 4 }, (_, index) => `assets/scene-frames/day-sweep-clean-v8-pc-wide-v1/frame-${String(index + 1).padStart(2, "0")}.webp`)
+          desktopFrames: [outdoorSceneSweepWide]
         },
         practice: {
           interval: 1400,
           frames: Array.from({ length: 6 }, (_, index) => `assets/scene-frames/day-practice-grounded-v18/frame-${String(index + 1).padStart(2, "0")}.webp`),
-          desktopFrames: Array.from({ length: 6 }, (_, index) => `assets/scene-frames/day-practice-grounded-v18-pc-wide-v1/frame-${String(index + 1).padStart(2, "0")}.webp`)
+          desktopFrames: [outdoorScenePracticeWide]
         }
       };
       const sceneAssets = [
@@ -2974,6 +2976,8 @@
         outdoorSceneBaseWide,
         outdoorSceneNight,
         outdoorSceneNightWide,
+        outdoorScenePracticeWide,
+        outdoorSceneSweepWide,
         ...Object.values(sceneFrameSets).flatMap(({ frames, desktopFrames }) => [...frames, ...desktopFrames])
       ];
 
@@ -3041,6 +3045,10 @@
 
         const frames = activeFrameSources(frameSet);
         setSceneImage(frames[motionFrameIndex % frames.length]);
+        if (frames.length <= 1) {
+          stopSceneMotion();
+          return;
+        }
         if (!motionTimer) {
           motionTimer = setInterval(() => {
             const currentFrameSet = sceneFrameSets[activeMotionAction];
