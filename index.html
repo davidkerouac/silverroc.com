@@ -167,7 +167,7 @@
         box-shadow:
           0 0 22px rgba(236, 211, 139, 0.42),
           0 0 70px rgba(201, 168, 76, 0.16);
-        animation: moonArc 32s ease-in-out infinite;
+        animation: moonArc 420s ease-in-out infinite;
       }
 
       .moon::after {
@@ -2775,7 +2775,9 @@
       const PAYMENT_STORAGE_KEY = "once-mountain-payment:v1";
       const freeLimit = 4;
       const freeBookDailyLimit = 3;
-      const demoAction = new URLSearchParams(window.location.search).get("demo");
+      const urlParams = new URLSearchParams(window.location.search);
+      const demoAction = urlParams.get("demo");
+      const previewMode = urlParams.get("preview") === "1";
 
       const schedule = [
         { id: "dawn-sweep", start: 300, end: 330, time: "05:00", title: "扫院醒山", status: "扫院", copy: "天刚亮，他先把山门和香炉旁扫干净。", action: "sweep", scene: "outdoor" },
@@ -3546,13 +3548,21 @@
         return lessons[new Date().getDate() % lessons.length];
       }
 
+      function scheduledSlot(mins = minutesNow()) {
+        return schedule.find((slot) => mins >= slot.start && mins < slot.end) || sleepSlot;
+      }
+
       function getSlot(mins = minutesNow()) {
+        const scheduled = scheduledSlot(mins);
         if (demoAction) {
+          if (!previewMode && getPhase(mins) === "night" && demoAction !== "sleep") {
+            return scheduled;
+          }
           const forced = schedule.find((slot) => slot.id === demoAction || slot.action === demoAction);
           if (forced) return forced;
           if (demoAction === "sleep") return sleepSlot;
         }
-        return schedule.find((slot) => mins >= slot.start && mins < slot.end) || sleepSlot;
+        return scheduled;
       }
 
       function refreshSceneForViewport() {
