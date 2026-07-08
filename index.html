@@ -1190,22 +1190,23 @@
         top: max(76px, calc(env(safe-area-inset-top) + 58px));
         left: 12px;
         z-index: 6;
-        width: 64px;
-        height: 64px;
+        width: 52px;
+        height: 52px;
         overflow: hidden;
-        padding: 6px;
-        border: 1px solid var(--line);
+        padding: 0;
+        border: 0;
         border-radius: 999px;
-        background: rgba(252, 252, 251, 0.62);
-        box-shadow: 0 14px 34px rgba(44, 42, 38, 0.12);
-        backdrop-filter: blur(18px);
+        background: transparent;
+        box-shadow: none;
+        backdrop-filter: none;
         outline: 0;
         transition:
           width 0.24s ease,
           height 0.24s ease,
           padding 0.24s ease,
           border-radius 0.24s ease,
-          background 0.24s ease;
+          background 0.24s ease,
+          box-shadow 0.24s ease;
       }
 
       .temple-sidebar:hover,
@@ -1214,8 +1215,26 @@
         width: 122px;
         height: 332px;
         padding: 10px;
+        border: 1px solid var(--line);
         border-radius: 20px;
         background: rgba(252, 252, 251, 0.72);
+        box-shadow: 0 14px 34px rgba(44, 42, 38, 0.12);
+        backdrop-filter: blur(18px);
+      }
+
+      .phone[data-phase="night"] .temple-sidebar {
+        background: transparent;
+        border-color: transparent;
+        box-shadow: none;
+      }
+
+      .phone[data-phase="night"] .temple-sidebar:hover,
+      .phone[data-phase="night"] .temple-sidebar:focus-within,
+      .phone[data-phase="night"] .temple-sidebar:focus {
+        background: rgba(41, 41, 38, 0.58);
+        border-color: rgba(209, 188, 153, 0.24);
+        color: rgba(240, 234, 220, 0.86);
+        box-shadow: 0 14px 34px rgba(0, 0, 0, 0.22);
       }
 
       .side-logo {
@@ -2305,9 +2324,8 @@
         .temple-sidebar {
           top: clamp(34px, 7vh, 72px);
           left: clamp(34px, 4.8vw, 86px);
-          width: 86px;
-          height: 86px;
-          border-radius: 50%;
+          width: 64px;
+          height: 64px;
         }
 
         .temple-sidebar:hover,
