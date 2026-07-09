@@ -3125,6 +3125,170 @@
         }
       }
 
+      function createNoiseSource(context, seconds = 2.6) {
+        const frameCount = Math.floor(context.sampleRate * seconds);
+        const buffer = context.createBuffer(1, frameCount, context.sampleRate);
+        const data = buffer.getChannelData(0);
+        let last = 0;
+        for (let index = 0; index < frameCount; index += 1) {
+          last = last * 0.72 + (Math.random() * 2 - 1) * 0.28;
+          data[index] = last;
+        }
+        const source = context.createBufferSource();
+        source.buffer = buffer;
+        source.loop = true;
+        return source;
+      }
+
+      function scheduleAmbientTimer(sound, callback, delay) {
+        const timer = window.setTimeout(() => {
+          sound.timers.delete(timer);
+          callback();
+        }, delay);
+        sound.timers.add(timer);
+      }
+
+      function rampGainParam(gainNode, value, seconds = 1.2) {
+        const now = gainNode.context.currentTime;
+        gainNode.gain.cancelScheduledValues(now);
+        gainNode.gain.setTargetAtTime(value, now, seconds / 4);
+      }
+
+      function buildCicadaLayer(sound) {
+        const { context, dayGain } = sound;
+        const noise = createNoiseSource(context);
+        const highpass = context.createBiquadFilter();
+        const bandpass = context.createBiquadFilter();
+        const shimmer = context.createBiquadFilter();
+        const cicadaBody = context.createGain();
+
+        highpass.type = "highpass";
+        highpass.frequency.value = 2800;
+        bandpass.type = "bandpass";
+        bandpass.frequency.value = 5200;
+        bandpass.Q.value = 5.4;
+        shimmer.type = "peaking";
+        shimmer.frequency.value = 7600;
+        shimmer.Q.value = 2.8;
+        shimmer.gain.value = 6;
+        cicadaBody.gain.value = 0.18;
+
+        noise.connect(highpass).connect(bandpass).connect(shimmer).connect(cicadaBody).connect(dayGain);
+        noise.start();
+
+        const breathe = () => {
+          const target = sound.activeKind === "day" && !document.hidden ? 0.1 + Math.random() * 0.16 : 0.02;
+          rampGainParam(cicadaBody, target, 1.8 + Math.random() * 1.4);
+          scheduleAmbientTimer(sound, breathe, 1600 + Math.random() * 2200);
+        };
+        breathe();
+      }
+
+      function playCricketChirp(sound) {
+        if (sound.activeKind !== "night" || document.hidden) return;
+        const { context, nightGain } = sound;
+        const now = context.currentTime;
+        const chirpGain = context.createGain();
+        const filter = context.createBiquadFilter();
+        const pulses = 2 + Math.floor(Math.random() * 2);
+        const baseFrequency = 3900 + Math.random() * 900;
+
+        filter.type = "bandpass";
+        filter.frequency.value = baseFrequency;
+        filter.Q.value = 9;
+        chirpGain.gain.setValueAtTime(0.0001, now);
+
+        for (let pulse = 0; pulse < pulses; pulse += 1) {
+          const start = now + pulse * 0.075;
+          chirpGain.gain.exponentialRampToValueAtTime(0.12, start + 0.018);
+          chirpGain.gain.exponentialRampToValueAtTime(0.0001, start + 0.062);
+        }
+
+        const oscillator = context.createOscillator();
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(baseFrequency, now);
+        oscillator.frequency.exponentialRampToValueAtTime(baseFrequency * 1.08, now + pulses * 0.075);
+        oscillator.connect(filter).connect(chirpGain).connect(nightGain);
+        oscillator.start(now);
+        oscillator.stop(now + pulses * 0.09 + 0.04);
+      }
+
+      function buildCricketLayer(sound) {
+        const chirp = () => {
+          playCricketChirp(sound);
+          const delay = sound.activeKind === "night" ? 900 + Math.random() * 1800 : 2600;
+          scheduleAmbientTimer(sound, chirp, delay);
+        };
+        chirp();
+      }
+
+      let ambientSound = null;
+      let ambientPhase = "day";
+
+      function createAmbientSound() {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) return null;
+
+        const context = new AudioContextClass();
+        const masterGain = context.createGain();
+        const dayGain = context.createGain();
+        const nightGain = context.createGain();
+        const sound = {
+          context,
+          masterGain,
+          dayGain,
+          nightGain,
+          timers: new Set(),
+          activeKind: "day",
+          enabled: false
+        };
+
+        masterGain.gain.value = 0;
+        dayGain.gain.value = 0;
+        nightGain.gain.value = 0;
+        dayGain.connect(masterGain);
+        nightGain.connect(masterGain);
+        masterGain.connect(context.destination);
+
+        buildCicadaLayer(sound);
+        buildCricketLayer(sound);
+        return sound;
+      }
+
+      function ambientKindForPhase(phase) {
+        return phase === "night" ? "night" : "day";
+      }
+
+      function updateAmbientSound(phase = ambientPhase) {
+        ambientPhase = phase;
+        const kind = ambientKindForPhase(phase);
+        if (appShell) appShell.dataset.ambient = ambientSound?.enabled ? kind : "locked";
+        if (!ambientSound?.enabled) return;
+        ambientSound.activeKind = kind;
+        if (document.hidden) {
+          rampGainParam(ambientSound.masterGain, 0, 1);
+          return;
+        }
+        rampGainParam(ambientSound.masterGain, 1, 1.2);
+        rampGainParam(ambientSound.dayGain, kind === "day" ? 0.055 : 0, 1.8);
+        rampGainParam(ambientSound.nightGain, kind === "night" ? 0.072 : 0, 1.8);
+      }
+
+      async function unlockAmbientSound() {
+        if (!ambientSound) ambientSound = createAmbientSound();
+        if (!ambientSound) {
+          if (appShell) appShell.dataset.ambient = "unsupported";
+          return;
+        }
+        try {
+          await ambientSound.context.resume();
+          ambientSound.enabled = true;
+          updateAmbientSound(ambientPhase);
+        } catch (error) {
+          console.warn("Ambient sound could not start", error);
+        }
+      }
+
       function loadState() {
         try {
           const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
@@ -3789,6 +3953,7 @@
         const phase = slot.action === "sleep" ? "night" : getPhase(mins);
 
         appShell.dataset.phase = phase;
+        updateAmbientSound(phase);
         templeDate.textContent = now.toLocaleDateString("zh-CN", {
           month: "numeric",
           day: "numeric",
@@ -4178,6 +4343,18 @@
       }
 
       applySceneView();
+      window.addEventListener("pointerdown", unlockAmbientSound, { once: true, passive: true, capture: true });
+      window.addEventListener("keydown", unlockAmbientSound, { once: true, capture: true });
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden) {
+          if (ambientSound?.enabled) rampGainParam(ambientSound.masterGain, 0, 0.8);
+          return;
+        }
+        if (ambientSound?.enabled) {
+          ambientSound.context.resume();
+          updateAmbientSound(ambientPhase);
+        }
+      });
       templeView.addEventListener("pointerdown", beginSceneGesture);
       templeView.addEventListener("pointermove", moveSceneGesture);
       templeView.addEventListener("pointerup", endSceneGesture);
