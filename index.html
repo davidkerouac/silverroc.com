@@ -610,6 +610,45 @@
         }
       }
 
+      .desktop-sweep-monk {
+        position: absolute;
+        display: none;
+        left: 61%;
+        top: 74.5%;
+        z-index: 5;
+        width: 72px;
+        height: 72px;
+        background-image: url("assets/monk-sweep-desktop-sprite-v1.png");
+        background-repeat: no-repeat;
+        background-position: 0 0;
+        background-size: auto 72px;
+        filter: saturate(0.9) brightness(0.96) contrast(0.96) blur(0.02px);
+        opacity: 0.96;
+        pointer-events: none;
+        transform: translate(-50%, -50%) rotate(-2deg);
+        transform-origin: 52% 80%;
+        will-change: background-position;
+      }
+
+      .desktop-sweep-monk::after {
+        position: absolute;
+        left: 30px;
+        top: 55px;
+        width: 26px;
+        height: 7px;
+        border-radius: 50%;
+        background: rgba(29, 28, 23, 0.15);
+        content: "";
+        filter: blur(2px);
+        transform: rotate(-15deg);
+      }
+
+      @keyframes desktopSweepSprite {
+        to {
+          background-position: -720px 0;
+        }
+      }
+
       .painted-sweep,
       .sweep-dust,
       .sweep-leaf {
@@ -2495,6 +2534,11 @@
           animation: desktopPracticeSprite 8.4s steps(6) infinite;
         }
 
+        .temple-view[data-action="sweep"] .desktop-sweep-monk {
+          display: block;
+          animation: desktopSweepSprite 6.8s steps(10) infinite;
+        }
+
         .account-pill {
           top: clamp(24px, 4vh, 52px);
           right: clamp(28px, 4.4vw, 72px);
@@ -2852,6 +2896,7 @@
             </span>
           </div>
           <span class="desktop-practice-monk" aria-hidden="true"></span>
+          <span class="desktop-sweep-monk" aria-hidden="true"></span>
           <div class="scene-prop book-prop"></div>
           <div class="scene-prop bowl-prop"></div>
           <div class="scene-prop letter-prop"></div>
@@ -3195,12 +3240,12 @@
       const outdoorSceneBaseWide = "assets/mountain-temple-desktop-day-empty-whole-v1.webp";
       const outdoorSceneNight = "assets/mountain-temple-watercolor-night-v1.png";
       const outdoorSceneNightWide = "assets/mountain-temple-desktop-night-whole-v1.webp";
-      const outdoorSceneSweepWide = "assets/mountain-temple-desktop-sweep-whole-v1.webp";
+      const desktopSweepMonkSprite = "assets/monk-sweep-desktop-sprite-v1.png";
       const sceneFrameSets = {
         sweep: {
           interval: 980,
           frames: Array.from({ length: 4 }, (_, index) => `assets/scene-frames/day-sweep-clean-v8/frame-${String(index + 1).padStart(2, "0")}.webp`),
-          desktopFrames: [outdoorSceneSweepWide]
+          desktopFrames: [outdoorSceneBaseWide]
         },
         practice: {
           interval: 1400,
@@ -3213,7 +3258,7 @@
         outdoorSceneBaseWide,
         outdoorSceneNight,
         outdoorSceneNightWide,
-        outdoorSceneSweepWide,
+        desktopSweepMonkSprite,
         ...Object.values(sceneFrameSets).flatMap(({ frames, desktopFrames }) => [...frames, ...desktopFrames])
       ];
 
