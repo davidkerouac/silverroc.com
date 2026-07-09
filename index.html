@@ -3184,6 +3184,57 @@
         breathe();
       }
 
+      function playCicadaCall(sound, lane = 0) {
+        if (sound.activeKind !== "day" || document.hidden) return;
+        const { context, dayGain } = sound;
+        const now = context.currentTime;
+        const presets = [
+          { frequency: 4200, q: 7.5, level: 0.11, pulseMin: 7, pulseMax: 12, spacing: 0.038, glide: 1.04 },
+          { frequency: 5600, q: 8.5, level: 0.085, pulseMin: 9, pulseMax: 16, spacing: 0.026, glide: 1.025 },
+          { frequency: 6900, q: 5.8, level: 0.065, pulseMin: 4, pulseMax: 8, spacing: 0.052, glide: 0.975 },
+          { frequency: 5000, q: 10, level: 0.075, pulseMin: 12, pulseMax: 18, spacing: 0.022, glide: 1.015 }
+        ];
+        const preset = presets[Math.floor(Math.random() * presets.length)];
+        const pulses = preset.pulseMin + Math.floor(Math.random() * (preset.pulseMax - preset.pulseMin + 1));
+        const spacing = preset.spacing * (0.82 + Math.random() * 0.36);
+        const baseFrequency = preset.frequency * (0.94 + Math.random() * 0.12);
+        const oscillator = context.createOscillator();
+        const filter = context.createBiquadFilter();
+        const phraseGain = context.createGain();
+
+        oscillator.type = lane % 2 === 0 ? "sawtooth" : "triangle";
+        oscillator.frequency.setValueAtTime(baseFrequency, now);
+        oscillator.frequency.exponentialRampToValueAtTime(baseFrequency * preset.glide, now + pulses * spacing);
+        filter.type = "bandpass";
+        filter.frequency.value = baseFrequency;
+        filter.Q.value = preset.q;
+        phraseGain.gain.setValueAtTime(0.0001, now);
+
+        for (let pulse = 0; pulse < pulses; pulse += 1) {
+          const start = now + pulse * spacing;
+          const peak = preset.level * (0.72 + Math.random() * 0.36);
+          phraseGain.gain.exponentialRampToValueAtTime(peak, start + spacing * 0.28);
+          phraseGain.gain.exponentialRampToValueAtTime(0.0001, start + spacing * 0.82);
+        }
+
+        oscillator.connect(filter).connect(phraseGain).connect(dayGain);
+        oscillator.start(now);
+        oscillator.stop(now + pulses * spacing + 0.08);
+      }
+
+      function buildRandomCicadaCalls(sound) {
+        const queueCall = (lane = 0) => {
+          playCicadaCall(sound, lane);
+          const baseDelay = [900, 1500, 2300][lane % 3];
+          const spread = [1900, 2600, 3800][lane % 3];
+          const delay = sound.activeKind === "day" ? baseDelay + Math.random() * spread : 3200 + Math.random() * 2600;
+          scheduleAmbientTimer(sound, () => queueCall(lane), delay);
+        };
+        [0, 1, 2].forEach((lane, index) => {
+          scheduleAmbientTimer(sound, () => queueCall(lane), 500 + index * 680 + Math.random() * 900);
+        });
+      }
+
       function playCricketChirp(sound) {
         if (sound.activeKind !== "night" || document.hidden) return;
         const { context, nightGain } = sound;
@@ -3251,6 +3302,7 @@
         masterGain.connect(context.destination);
 
         buildCicadaLayer(sound);
+        buildRandomCicadaCalls(sound);
         buildCricketLayer(sound);
         return sound;
       }
@@ -3270,7 +3322,7 @@
           return;
         }
         rampGainParam(ambientSound.masterGain, 1, 1.2);
-        rampGainParam(ambientSound.dayGain, kind === "day" ? 0.055 : 0, 1.8);
+        rampGainParam(ambientSound.dayGain, kind === "day" ? 0.068 : 0, 1.8);
         rampGainParam(ambientSound.nightGain, kind === "night" ? 0.072 : 0, 1.8);
       }
 
