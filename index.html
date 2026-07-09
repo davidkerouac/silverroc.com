@@ -571,6 +571,45 @@
         will-change: opacity, background-position, transform;
       }
 
+      .desktop-practice-monk {
+        position: absolute;
+        display: none;
+        left: 61.2%;
+        top: 69.6%;
+        z-index: 5;
+        width: 64px;
+        height: 64px;
+        background-image: url("assets/monk-practice-desktop-sprite-v1.png");
+        background-repeat: no-repeat;
+        background-position: 0 0;
+        background-size: auto 64px;
+        filter: saturate(0.9) brightness(0.98) contrast(0.95) blur(0.02px);
+        opacity: 0.96;
+        pointer-events: none;
+        transform: translate(-50%, -50%) rotate(-2deg);
+        transform-origin: 52% 78%;
+        will-change: background-position;
+      }
+
+      .desktop-practice-monk::after {
+        position: absolute;
+        left: 31px;
+        top: 45px;
+        width: 22px;
+        height: 6px;
+        border-radius: 50%;
+        background: rgba(29, 28, 23, 0.16);
+        content: "";
+        filter: blur(2px);
+        transform: rotate(-16deg);
+      }
+
+      @keyframes desktopPracticeSprite {
+        to {
+          background-position: -384px 0;
+        }
+      }
+
       .painted-sweep,
       .sweep-dust,
       .sweep-leaf {
@@ -2312,6 +2351,11 @@
           object-position: center center;
         }
 
+        .temple-view[data-action="practice"] .desktop-practice-monk {
+          display: block;
+          animation: desktopPracticeSprite 8.4s steps(6) infinite;
+        }
+
         .account-pill {
           top: clamp(24px, 4vh, 52px);
           right: clamp(28px, 4.4vw, 72px);
@@ -2661,6 +2705,7 @@
               <span class="activity-arm activity-arm-right"></span>
             </span>
           </div>
+          <span class="desktop-practice-monk" aria-hidden="true"></span>
           <div class="scene-prop book-prop"></div>
           <div class="scene-prop bowl-prop"></div>
           <div class="scene-prop letter-prop"></div>
@@ -2998,7 +3043,6 @@
       const outdoorSceneBaseWide = "assets/mountain-temple-desktop-day-empty-whole-v1.webp";
       const outdoorSceneNight = "assets/mountain-temple-watercolor-night-v1.png";
       const outdoorSceneNightWide = "assets/mountain-temple-desktop-night-whole-v1.webp";
-      const outdoorScenePracticeWide = "assets/mountain-temple-desktop-practice-whole-v1.webp";
       const outdoorSceneSweepWide = "assets/mountain-temple-desktop-sweep-whole-v1.webp";
       const sceneFrameSets = {
         sweep: {
@@ -3009,7 +3053,7 @@
         practice: {
           interval: 1400,
           frames: Array.from({ length: 6 }, (_, index) => `assets/scene-frames/day-practice-grounded-v18/frame-${String(index + 1).padStart(2, "0")}.webp`),
-          desktopFrames: [outdoorScenePracticeWide]
+          desktopFrames: [outdoorSceneBaseWide]
         }
       };
       const sceneAssets = [
@@ -3017,7 +3061,6 @@
         outdoorSceneBaseWide,
         outdoorSceneNight,
         outdoorSceneNightWide,
-        outdoorScenePracticeWide,
         outdoorSceneSweepWide,
         ...Object.values(sceneFrameSets).flatMap(({ frames, desktopFrames }) => [...frames, ...desktopFrames])
       ];
